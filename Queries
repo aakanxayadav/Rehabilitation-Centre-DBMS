@@ -1,0 +1,152 @@
+CREATING THE schema “Rehab”,
+Creating table-
+CREATE TABLE Patients (
+    PatientID INT PRIMARY KEY,
+    FirstName VARCHAR(50),
+    LastName VARCHAR(50),
+    DOB DATE,
+    AdmissionDate DATE,
+    DischargeDate DATE,
+    TreatmentPlan VARCHAR(100),
+    AssignedTherapist VARCHAR(100),
+    ContactEmail VARCHAR(100),
+    ContactPhone VARCHAR(20),
+    City VARCHAR(50),
+    State VARCHAR(50),
+    EmergencyContactName VARCHAR(100),
+    EmergencyContactPhone VARCHAR(20),
+    InsuranceProvider VARCHAR(100),
+    InsurancePolicyNumber VARCHAR(20)
+);
+Inserting the Values into it
+
+1.	Display whole table-
+SELECT * FROM rehab.patients
+
+2.	Avg. patient age-
+SELECT AVG(YEAR(CURRENT_DATE) - YEAR(DOB)) AS AverageAge FROM Patients;
+
+3.	Get the total number of patients per treatment plan:
+SELECT TreatmentPlan, COUNT(*) AS PatientCount FROM Patients GROUP BY TreatmentPlan;
+
+
+
+4.	Duration of stay for each patient:
+SELECT PatientID, FirstName, LastName, AdmissionDate, DischargeDate, 
+       DATEDIFF(DischargeDate, AdmissionDate) AS DurationOfStay
+FROM Patients;
+
+5.	Patients with same emergency contact num.-
+SELECT EmergencyContactPhone, COUNT(*) AS NumPatients
+FROM Patients
+GROUP BY EmergencyContactPhone
+HAVING COUNT(*) > 1;
+
+6.	Find Patients with Similar Treatment Plans in Different Cities:
+SELECT p1.PatientID, p1.FirstName, p1.LastName, p1.TreatmentPlan, p1.City AS City1, p2.City AS City2
+FROM Patients p1
+JOIN Patients p2 ON p1.PatientID <> p2.PatientID
+  AND p1.TreatmentPlan = p2.TreatmentPlan
+  AND p1.City <> p2.City;
+
+7.	Finding out inconsistency in data:
+SELECT *
+FROM Patients
+WHERE DischargeDate < AdmissionDate;
+
+
+8.	Youngsters involved in substance abuse recovery:
+SELECT *
+FROM Patients
+WHERE YEAR(CURRENT_DATE) - YEAR(DOB) < 25
+  AND TreatmentPlan = 'Substance Abuse Recovery';
+
+
+9.	Longest rehabilitation duration:
+SELECT PatientID, FirstName, LastName, TreatmentPlan, DATEDIFF(DischargeDate, AdmissionDate) AS RehabilitationDuration
+FROM Patients
+ORDER BY RehabilitationDuration DESC
+LIMIT 5;
+
+
+10.	Therapist assigned with highest number of patients-
+SELECT AssignedTherapist, COUNT(*) AS NumberOfPatients
+FROM Patients
+GROUP BY AssignedTherapist
+ORDER BY NumberOfPatients DESC
+LIMIT 5;
+
+11.	Grouping each medical disorder and age group in them:
+SELECT
+    TreatmentPlan,
+    CASE
+        WHEN TIMESTAMPDIFF(YEAR, DOB, CURDATE()) BETWEEN 18 AND 30 THEN '18-30'
+        WHEN TIMESTAMPDIFF(YEAR, DOB, CURDATE()) BETWEEN 31 AND 45 THEN '31-45'
+        WHEN TIMESTAMPDIFF(YEAR, DOB, CURDATE()) BETWEEN 46 AND 60 THEN '46-60'
+        ELSE '61+'
+    END AS AgeGroup,
+    COUNT(*) AS NumberOfPatients
+FROM
+    patients
+GROUP BY
+    TreatmentPlan,
+    AgeGroup
+ORDER BY
+    TreatmentPlan,
+    AgeGroup;
+
+12.	Grouping similar treatments into one-
+SELECT
+    CASE
+        WHEN TreatmentPlan IN ('Mental Health Rehabilitation', 'Anxiety Treatment', 'Depression Management') THEN 'Mental Disorders'
+        ELSE TreatmentPlan
+    END AS GroupedTreatment,
+    COUNT(*) AS PatientCount
+FROM
+    Patients
+GROUP BY
+    GroupedTreatment;
+
+13.	Patient with similar treatment plans but different therapists:
+SELECT
+    PatientID,
+    FirstName,
+    LastName,
+    TreatmentPlan,
+    AssignedTherapist
+FROM
+    Patients
+WHERE
+    (TreatmentPlan, State) IN (
+        SELECT
+            TreatmentPlan,
+            State
+        FROM
+            Patients
+        GROUP BY
+            TreatmentPlan, State
+        HAVING
+            COUNT(DISTINCT AssignedTherapist) > 1
+    )
+LIMIT 5;
+
+14.	Treatment Plan Transition Analysis:
+SELECT
+    PatientID,
+    FirstName,
+    LastName,
+    TreatmentPlan AS PreviousTreatmentPlan,
+    LEAD(TreatmentPlan) OVER (PARTITION BY PatientID ORDER BY AdmissionDate) AS NextTreatmentPlan
+FROM
+    Patients
+WHERE
+    TreatmentPlan IS NOT NULL
+LIMIT 5;
+
+15.	Update Patient using treatment plan ‘substance abuse recovery’ will be requiring ‘checkup’:
+ALTER TABLE patients
+ADD COLUMN required_checkup VARCHAR(3);
+
+UPDATE patients
+SET required_checkup = 'yes'
+WHERE TreatmentPlan = 'Substance Abuse Recovery';
